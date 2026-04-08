@@ -1,0 +1,22 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: treatment-finder-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - treatment_finder_db:/app/treatment_finder.db
+    networks:
+      - platform_net
+    restart: unless-stopped
+
+networks:
+  platform_net:
+    name: treatment-finder-platform-net
+
+volumes:
+  treatment_finder_db:

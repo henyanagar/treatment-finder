@@ -1,0 +1,56 @@
+@baseUrl = http://127.0.0.1:8000
+@serviceId = 1
+@clinicId = 1
+@appointmentId = 1
+
+### 0) Optional seed step (run in terminal once)
+# python -m app.init_db
+# Tip: after creating an appointment, update @appointmentId to the returned "id".
+
+### Health
+GET {{baseUrl}}/health
+
+### List services (pick an id for appointment)
+GET {{baseUrl}}/services
+
+### Get one service by ID
+GET {{baseUrl}}/services/{{serviceId}}
+
+### List clinics (pick an id for appointment)
+GET {{baseUrl}}/clinics
+
+### Get one clinic by ID
+GET {{baseUrl}}/clinics/{{clinicId}}
+
+### Create appointment
+POST {{baseUrl}}/appointments
+Content-Type: application/json
+
+{
+  "user_full_name": "Dana Levi",
+  "user_phone": "0521234567",
+  "notes": "Prefers morning",
+  "appointment_datetime": "2026-04-09T10:30:00",
+  "service_id": {{serviceId}},
+  "clinic_id": {{clinicId}}
+}
+
+### List appointments
+GET {{baseUrl}}/appointments
+
+### Get appointment by ID
+GET {{baseUrl}}/appointments/{{appointmentId}}
+
+### Update appointment (partial)
+PATCH {{baseUrl}}/appointments/{{appointmentId}}
+Content-Type: application/json
+
+{
+  "notes": "Please call before arrival"
+}
+
+### Delete appointment
+DELETE {{baseUrl}}/appointments/{{appointmentId}}
+
+### Verify deleted appointment now returns 404
+GET {{baseUrl}}/appointments/{{appointmentId}}
