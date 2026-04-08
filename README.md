@@ -1,67 +1,114 @@
-# Treatment Finder Backend (Ex1)
+# Treatment Finder and Appointment Platform
 
-Backend API for a treatment discovery and appointment booking platform.
+Course project for discovering treatments and booking appointments.
 
-## Stack
+## Overview
 
-- FastAPI
-- SQLModel + SQLite
-- Pytest
+This platform helps users:
+- search for a treatment
+- view matching clinics
+- compare clinic rating and location
+- book appointments
 
-## Project Layout
+The project is built in stages across the course:
+- **Ex1:** Backend only (implemented foundation)
+- **Ex2:** Backend + Frontend (planned/next stage)
+- **Ex3:** Backend + Frontend + additional microservice (planned/final stage)
+
+## Main User Flow
+
+1. User searches for a treatment.
+2. System shows relevant clinics that provide this service.
+3. User compares clinics by rating and location.
+4. User books an appointment at the selected clinic.
+
+## Architecture Overview
+
+### Backend (Ex1 foundation)
+- Technology: FastAPI + SQLModel + SQLite
+- Pattern: layered architecture
+  - `api` (routes/controllers)
+  - `services` (business logic)
+  - `repositories` (data access)
+  - `schemas` (request/response contracts)
+
+### Frontend (Ex2 target)
+- Planned role:
+  - treatment search UI
+  - clinic comparison UI (rating + location)
+  - appointment booking form
+- Will consume backend REST APIs.
+
+### Additional Microservice (Ex3 target)
+- Planned role:
+  - extract one domain capability (for example: notifications, recommendations, or clinic catalog sync)
+- Will communicate with backend via HTTP/events and run as an independent process/container.
+
+## Exercises Scope
+
+### Ex1 - Backend Only (Current)
+- FastAPI REST API
+- SQLite + SQLModel persistence
+- Full CRUD for `appointments`
+- Supporting resources: `services`, `clinics`
+- Automated tests (`pytest`)
+- Manual HTTP demo file
+
+### Ex2 - Backend + Frontend (Planned)
+- Add frontend app
+- Connect frontend flows to backend APIs
+- Demonstrate full user journey in UI
+
+### Ex3 - Backend + Frontend + Microservice (Planned)
+- Add one extra microservice
+- Run all services via Docker Compose
+- Show service boundaries and communication
+
+## Main Entities / Resources
+
+- **services**: treatment/service catalog entries.
+- **clinics**: clinics offering services, with location and rating fields.
+- **appointments**: booking records linking user + service + clinic + datetime.
+
+## Project Structure
 
 ```text
-backend/
-  app/
-    api/
-      appointments.py
-      services.py
-      clinics.py
-    repositories/
-      appointment_repository.py
-      service_repository.py
-      clinic_repository.py
-    services/
-      appointment_service.py
-    schemas/
-      appointment.py
-      service.py
-      clinic.py
-    core/
-      database.py
-    db.py
-    init_db.py
-    main.py
-    models.py
-  tests/
-    test_appointments_api.py
-    test_supporting_resources_api.py
-  requests/
-    appointment_crud.http
-  Dockerfile
+treatment-finder-platform/
+  backend/
+    app/
+      api/
+      services/
+      repositories/
+      schemas/
+      core/
+      db.py
+      init_db.py
+      main.py
+      models.py
+    tests/
+    requests/
+      appointment_crud.http
+    Dockerfile
+    entrypoint.sh
+    requirements.txt
+    README.md
   docker-compose.yml
-  entrypoint.sh
   README.md
-  requirements.txt
+  .gitignore
 ```
 
-## File Responsibilities
+## Setup and Run
 
-- `app/api/appointments.py` - HTTP endpoints for appointments CRUD.
-- `app/api/services.py` - read endpoints for services.
-- `app/api/clinics.py` - read endpoints for clinics.
-- `app/services/appointment_service.py` - appointment business rules (validation + orchestration).
-- `app/repositories/appointment_repository.py` - appointment DB CRUD operations.
-- `app/repositories/service_repository.py` - service DB read operations.
-- `app/repositories/clinic_repository.py` - clinic DB read operations.
-- `app/schemas/appointment.py` - appointment API request/response shapes.
-- `app/schemas/service.py` - service response shape.
-- `app/schemas/clinic.py` - clinic response shape.
-- `app/core/database.py` - shared engine/session module for future service extraction.
+### Prerequisites
+- Python 3.12+ (project currently tested on Python 3.13)
+- Docker Desktop (optional, recommended for full run)
 
-## Setup
+### A) Run Backend Locally (Ex1)
+
+From repository root:
 
 ```bash
+cd backend
 python -m venv .venv
 ```
 
@@ -77,54 +124,60 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-## Run API
-
-```bash
-uvicorn app.main:app --reload
-```
-
-API will be available at `http://127.0.0.1:8000` and docs at `http://127.0.0.1:8000/docs`.
-
-## Initialize Seed Data
-
-Run once to create tables and insert sample `services` and `clinics`:
+Initialize DB with seed data:
 
 ```bash
 python -m app.init_db
 ```
 
-## Run Tests
+Run backend:
 
 ```bash
+uvicorn app.main:app --reload
+```
+
+Backend URLs:
+- API: `http://127.0.0.1:8000`
+- Swagger: `http://127.0.0.1:8000/docs`
+
+### B) Run Tests (Backend)
+
+From repository root:
+
+```bash
+cd backend
 pytest -q
 ```
 
-## Docker
+### C) Run Entire System with Docker Compose (root)
 
-Build and run from the repository root (project-wide compose):
+From repository root:
 
 ```bash
 docker compose up --build
 ```
 
-The container startup process:
-- installs dependencies from `requirements.txt`
-- runs `python -m app.init_db`
-- starts `uvicorn app.main:app --host 0.0.0.0 --port 8000`
-
-SQLite persistence is configured with a named Docker volume:
-- volume: `treatment_finder_db`
-- mounted file: `/app/treatment_finder.db`
-
-To stop:
+Stop:
 
 ```bash
 docker compose down
 ```
 
-`docker-compose.yml` is located at the project root (`treatment-finder-platform/docker-compose.yml`).
+## Frontend and Microservice Commands (Ex2/Ex3)
 
-## Main Endpoints
+These folders are planned for next stages. When added, run commands from root:
+
+```bash
+cd frontend
+# install + run commands (to be added in Ex2)
+```
+
+```bash
+cd services/<service-name>
+# install + run commands (to be added in Ex3)
+```
+
+## Ex1 Main API Endpoints
 
 - `GET /health`
 - `GET /services`
@@ -137,42 +190,24 @@ docker compose down
 - `PATCH /appointments/{appointment_id}`
 - `DELETE /appointments/{appointment_id}`
 
-## Minimal Test Plan
+## Manual Demo Flow (for Grading)
 
-- Health check returns `200` with `{ "status": "ok" }`.
-- Services endpoints: list returns data, get by id works, missing id returns `404`.
-- Clinics endpoints: list returns data, get by id works, missing id returns `404`.
-- Appointments CRUD: create, list, get, patch, delete, then get returns `404`.
-- Appointment create with non-existing `service_id` or `clinic_id` returns `400`.
+Use `backend/requests/appointment_crud.http`.
 
-## Manual HTTP Requests
-
-Use `requests/appointment_crud.http` in Cursor REST client.
-The file contains a full demo flow:
-1. health check
-2. list/get services and clinics
-3. create appointment
-4. list/get/update/delete appointment
-5. verify missing appointment returns `404`
+Recommended live demo order:
+1. `GET /health`
+2. `GET /services`
+3. `GET /clinics`
+4. `POST /appointments`
+5. `GET /appointments`
+6. `GET /appointments/{id}`
+7. `PATCH /appointments/{id}`
+8. `DELETE /appointments/{id}`
+9. `GET /appointments/{id}` (expect `404`)
 
 ## Notes
 
-- Ex1 currently includes full CRUD for `appointments`.
-- `services` and `clinics` are supporting resources in the data model and used for appointment validation.
-- Use `GET /services` and `GET /clinics` to fetch valid IDs before creating appointments.
-
-## Microservices Readiness
-
-Current codebase is still a single service, but it now has clearer boundaries for future extraction:
-- shared DB/session code moved to `app/core/database.py`
-- `app/db.py` remains as a compatibility layer
-- appointments logic is already isolated across:
-  - `app/api/appointments.py`
-  - `app/services/appointment_service.py`
-  - `app/repositories/appointment_repository.py`
-
-Recommended next extraction path (no breaking redesign):
-1. move appointments module to a separate repo/service with its own DB
-2. keep `services` and `clinics` in a catalog service
-3. replace direct FK validation with service-to-service calls (or async events)
-4. keep API contracts stable (`schemas`) to reduce migration risk
+- SQLite is used for Ex1 (`treatment_finder.db`) for simple local persistence.
+- Automated tests are in `backend/tests/`.
+- Manual REST checks are in `backend/requests/appointment_crud.http`.
+- Ex1 is the implemented foundation; Ex2/Ex3 sections describe planned extensions and expected structure.
