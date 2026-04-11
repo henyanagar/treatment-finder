@@ -31,6 +31,7 @@ The project is built in stages across the course:
   - `services` (business logic)
   - `repositories` (data access)
   - `schemas` (request/response contracts)
+- **Dynamic context injection (AI):** The AI consultation service loads the current service catalog from the database on each request and passes it to the model, so recommendations stay aligned with live data without maintaining separate keyword maps or manual re-mapping when the catalog changes.
 
 ### Frontend (Ex2 target)
 - Planned role:
@@ -68,6 +69,7 @@ The project is built in stages across the course:
 
 - **services**: treatment/service catalog entries.
 - **clinics**: clinics offering services, with location and rating fields.
+- **clinic_services**: clinic-to-service mapping table (which clinic offers which treatment).
 - **appointments**: booking records linking user + service + clinic + datetime.
 
 ## Project Structure
@@ -81,19 +83,19 @@ treatment-finder-platform/
       repositories/
       schemas/
       core/
-      db.py
       init_db.py
       main.py
       models.py
     tests/
     requests/
       appointment_crud.http
-    Dockerfile
     entrypoint.sh
-    requirements.txt
     README.md
+  Dockerfile
   docker-compose.yml
+  requirements.txt
   README.md
+  .env.example
   .gitignore
 ```
 
@@ -189,6 +191,98 @@ cd services/<service-name>
 - `GET /appointments/{appointment_id}`
 - `PATCH /appointments/{appointment_id}`
 - `DELETE /appointments/{appointment_id}`
+- `GET /search?query=...`
+- `POST /ai/consult`
+
+## Smart AI Semantic Consultant
+
+The backend exposes **`POST /ai/consult`**, a semantic consultant that maps free-text goals and symptoms to entries in your **current** treatment catalog and returns matching clinics.
+
+### Dual-engine support
+
+- **Primary:** [Groq](https://groq.com/) runs **Llama 3.1** (default model `llama-3.1-8b-instant`, overridable via `GROQ_MODEL`).
+- **Failover:** If Groq errors or is misconfigured, the same prompt is sent to **Google Gemini** automatically.
+- If both providers are unavailable, a **local keyword fallback** still returns plausible services (no hard crash).
+
+### Semantic intelligence
+
+The model interprets **Hebrew**, **slang**, and **medical intent** using general language understanding—**not** hardcoded synonym tables. For example, a user describing **back pain** can be routed toward **Physiotherapy** (or whatever matching services exist in your seeded catalog) based on the live list of service names and descriptions.
+
+### Broad query support
+
+Open-ended requests (e.g. **“Facial treatment”**) receive a **short curated set** of distinct, relevant services across categories (typically several top matches), not a single arbitrary pick or the entire catalog.
+
+### API keys and environment
+
+Copy `.env.example` to `.env` at the **repository root** and set:
+
+```bash
+GROQ_API_KEY=your_groq_key
+GROQ_MODEL=llama-3.1-8b-instant
+GEMINI_API_KEY=your_gemini_key
+```
+
+- Groq: [Groq Console](https://console.groq.com/) API keys.
+- Gemini: [Google AI Studio](https://aistudio.google.com/app/apikey).
+
+### Docker environment
+
+`docker-compose.yml` loads the root `.env` via `env_file` and **explicitly** passes `GROQ_API_KEY`, `GEMINI_API_KEY`, and `GROQ_MODEL` into the backend container. The image uses `backend/entrypoint.sh`, which starts Uvicorn with those variables already in the process environment.
+
+### Sample request (`POST /ai/consult`)
+
+```json
+{
+  "query": "I want a facial refresh — something for skin texture and glow"
+}
+```
+
+Example response shape (multi-match; single-match responses still populate `matched_service_id` / `matched_service_name` for the primary item):
+
+```json
+{
+  "matched_service_id": null,
+  "matched_service_name": null,
+  "matched_service_ids": [3, 7, 12],
+  "matched_service_names": [
+    "Hyaluronic Acid Filler",
+    "CO2 Laser Resurfacing",
+    "Botox Injection"
+  ],
+  "location": null,
+  "reason": "Matched via Groq.",
+  "explanation": "These address facial rejuvenation: fillers for volume, laser for texture, neuromodulator for dynamic lines.",
+  "confidence_score": 0.86,
+  "clinics": [
+    {
+      "clinic_id": 4,
+      "clinic_name": "Nova Medical Aesthetic Center",
+      "city": "Tel Aviv",
+      "rating": 4.8
+    }
+  ]
+}
+```
+
+## Seed Data Catalog (Demo)
+
+After running `python -m app.init_db`, the DB includes a richer demo dataset:
+
+- Categories represented in service descriptions:
+  - `Injections`
+  - `Surgical`
+  - `Advanced Technology`
+- Example advanced services:
+  - `Botox Injection`
+  - `Hyaluronic Acid Filler`
+  - `Rhinoplasty`
+  - `CO2 Laser Resurfacing`
+  - `CoolSculpting`
+- Example specialized clinics:
+  - `Nova Medical Aesthetic Center`
+  - `Elite Laser & Aesthetics Institute`
+
+This data is linked through `clinic_services` so both local search and AI consult can return meaningful treatment-to-clinic matches in demos.
 
 ## Manual Demo Flow (for Grading)
 
@@ -208,6 +302,8 @@ Recommended live demo order:
 ## Notes
 
 - SQLite is used for Ex1 (`treatment_finder.db`) for simple local persistence.
+- `python -m app.init_db` now seeds realistic `services`, `clinics`, and `clinic_services` data for local search proof of concept.
+- To reseed from scratch, delete `backend/treatment_finder.db` and run `python -m app.init_db` again.
 - Automated tests are in `backend/tests/`.
 - Manual REST checks are in `backend/requests/appointment_crud.http`.
 - Ex1 is the implemented foundation; Ex2/Ex3 sections describe planned extensions and expected structure.

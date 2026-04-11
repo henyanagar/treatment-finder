@@ -2,7 +2,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine
 
-from app.db import get_session
+from app.core.database import get_session
 from app.main import app
 from app.models import Clinic, Service
 
@@ -102,6 +102,67 @@ def test_clinics_pagination() -> None:
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 1
+
+    app.dependency_overrides.clear()
+    session.close()
+
+
+def test_link_service_to_clinic_endpoint() -> None:
+    client, session = _build_client()
+    service = Service(name="Physiotherapy", description="Treatment")
+    clinic = Clinic(name="City Clinic", address="1 Main St", city="Tel Aviv", rating=4.7)
+    session.add(service)
+    session.add(clinic)
+    session.commit()
+    session.refresh(service)
+    session.refresh(clinic)
+
+    response = client.post(f"/clinics/{clinic.id}/services/{service.id}")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["clinic_id"] == clinic.id
+    assert data["service_id"] == service.id
+    assert data["is_available"] is True
+
+    list_links_res = client.get(f"/clinics/{clinic.id}/services")
+    assert list_links_res.status_code == 200
+    assert len(list_links_res.json()) == 1
+
+    list_clinics_for_service_res = client.get(f"/services/{service.id}/clinics")
+    assert list_clinics_for_service_res.status_code == 200
+    assert len(list_clinics_for_service_res.json()) == 1
+
+    app.dependency_overrides.clear()
+    session.close()
+
+
+def test_create_service_and_clinic() -> None:
+    client, session = _build_client()
+
+    create_service_res = client.post(
+        "/services",
+        json={"name": "Osteopathy", "description": "Manual therapy"},
+    )
+    assert create_service_res.status_code == 201
+    service_id = create_service_res.json()["id"]
+
+    create_clinic_res = client.post(
+        "/clinics",
+        json={
+            "name": "Downtown Clinic",
+            "address": "5 King St",
+            "city": "Tel Aviv",
+            "rating": 4.2,
+        },
+    )
+    assert create_clinic_res.status_code == 201
+    clinic_id = create_clinic_res.json()["id"]
+
+    get_service_res = client.get(f"/services/{service_id}")
+    assert get_service_res.status_code == 200
+
+    get_clinic_res = client.get(f"/clinics/{clinic_id}")
+    assert get_clinic_res.status_code == 200
 
     app.dependency_overrides.clear()
     session.close()

@@ -3,3 +3,6 @@ uvicorn
 sqlmodel
 pytest
 httpx
+google-genai>=1.0.0,<2.0.0
+groq>=1.0.0,<2.0.0
+python-dotenv>=1.0.0,<2.0.0

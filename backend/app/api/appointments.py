@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Response, status
 from sqlmodel import Session
 
-from app.db import get_session
+from app.core.database import get_session
 from app.schemas.appointment import AppointmentCreate, AppointmentRead, AppointmentUpdate
 from app.services import appointment_service
 
