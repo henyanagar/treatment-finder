@@ -52,6 +52,7 @@ The project is built in stages across the course:
 - SQLite + SQLModel persistence
 - Full CRUD for `appointments`
 - Supporting resources: `services`, `clinics`
+- **Input validation:** Pydantic/SQLModel `Field` constraints on request/response schemas reject bad payloads early (for example non-empty names, phone format, positive IDs, bounded strings). Invalid input returns **HTTP 422** with validation detail instead of opaque server errors.
 - Automated tests (`pytest`)
 - Manual HTTP demo file
 
@@ -74,29 +75,31 @@ The project is built in stages across the course:
 
 ## Project Structure
 
+Repository **root** holds container/dependency config and environment templates; all **application code** lives under **`backend/app/`**.
+
 ```text
-treatment-finder-platform/
+treatment-finder-platform/          # repository root
+  Dockerfile                        # image build (copies backend + root requirements)
+  docker-compose.yml
+  requirements.txt                  # Python dependencies (used by Docker and local install)
+  .env.example                      # copy to .env here for local + Compose
+  README.md
+  .gitignore
   backend/
-    app/
-      api/
-      services/
+    app/                            # FastAPI application package
+      api/                          # route modules
+      services/                     # business logic (incl. ai_service)
       repositories/
-      schemas/
-      core/
+      schemas/                      # SQLModel request/response models + Field validation
+      core/                         # database, config
       init_db.py
       main.py
       models.py
     tests/
     requests/
       appointment_crud.http
-    entrypoint.sh
-    README.md
-  Dockerfile
-  docker-compose.yml
-  requirements.txt
-  README.md
-  .env.example
-  .gitignore
+    entrypoint.sh                   # Docker container start (init_db + uvicorn)
+    treatment_finder.db             # SQLite file (created locally after init_db)
 ```
 
 ## Setup and Run
@@ -105,7 +108,11 @@ treatment-finder-platform/
 - Python 3.12+ (project currently tested on Python 3.13)
 - Docker Desktop (optional, recommended for full run)
 
+**Environment file:** Create `.env` in the **repository root** (next to `docker-compose.yml`). Copy from `.env.example` and add API keys as needed for AI. Local `uvicorn` also loads this file via `python-dotenv` when present.
+
 ### A) Run Backend Locally (Ex1)
+
+All **runtime commands** (`python -m app.init_db`, `uvicorn`, `pytest`) assume your **current working directory is `backend/`**, so Python can import the `app` package.
 
 From repository root:
 
@@ -114,16 +121,16 @@ cd backend
 python -m venv .venv
 ```
 
-Windows PowerShell:
+Windows PowerShell (still inside `backend/`):
 
 ```bash
 .venv\Scripts\Activate.ps1
 ```
 
-Install dependencies:
+Install dependencies using the **root** `requirements.txt`:
 
 ```bash
-pip install -r requirements.txt
+pip install -r ../requirements.txt
 ```
 
 Initialize DB with seed data:
@@ -144,16 +151,15 @@ Backend URLs:
 
 ### B) Run Tests (Backend)
 
-From repository root:
+From **`backend/`** (with the venv activated):
 
 ```bash
-cd backend
 pytest -q
 ```
 
 ### C) Run Entire System with Docker Compose (root)
 
-From repository root:
+From **repository root**:
 
 ```bash
 docker compose up --build
@@ -182,35 +188,36 @@ cd services/<service-name>
 ## Ex1 Main API Endpoints
 
 - `GET /health`
-- `GET /services`
-- `GET /services/{service_id}`
-- `GET /clinics`
+- `GET /services`, `POST /services`
+- `GET /services/{service_id}`, `GET /services/{service_id}/clinics`
+- `GET /clinics`, `POST /clinics`
 - `GET /clinics/{clinic_id}`
-- `POST /appointments`
-- `GET /appointments`
-- `GET /appointments/{appointment_id}`
-- `PATCH /appointments/{appointment_id}`
-- `DELETE /appointments/{appointment_id}`
+- `POST /clinics/{clinic_id}/services/{service_id}`, `GET /clinics/{clinic_id}/services`
+- `POST /appointments`, `GET /appointments`, `GET /appointments/{appointment_id}`, `PATCH /appointments/{appointment_id}`, `DELETE /appointments/{appointment_id}`
 - `GET /search?query=...`
-- `POST /ai/consult`
+- `POST /ai/consult` (body: `{ "query": "..." }`, see Smart AI Semantic Consultant below)
+
+Full request/response shapes and validation rules are in `backend/app/schemas/` and in OpenAPI at `/docs`.
 
 ## Smart AI Semantic Consultant
 
-The backend exposes **`POST /ai/consult`**, a semantic consultant that maps free-text goals and symptoms to entries in your **current** treatment catalog and returns matching clinics.
+**`POST /ai/consult`** implements a semantic consultant with **dual-engine support**: **[Groq](https://groq.com/)** runs **Llama 3.1** as the **primary** model, and **Google Gemini** is used as **automatic failover** if Groq fails or is not configured. The handler (`backend/app/services/ai_service.py`) tries Groq first, then Gemini, then a **local keyword fallback** so the API does not hard-crash when providers are down.
 
-### Dual-engine support
+The service maps free-text goals and symptoms to rows in your **live** `services` table and returns clinics that offer those treatments. For **broad** queries (for example **“facial treatment”**), the model is instructed to return several distinct catalog names; the API surfaces them as **`matched_service_names`** / **`matched_service_ids`** and aggregates clinics linked to **any** of those services. When only one service is appropriate, **`matched_service_id`** and **`matched_service_name`** are set to that primary match and the plural lists still contain the full set.
 
-- **Primary:** [Groq](https://groq.com/) runs **Llama 3.1** (default model `llama-3.1-8b-instant`, overridable via `GROQ_MODEL`).
-- **Failover:** If Groq errors or is misconfigured, the same prompt is sent to **Google Gemini** automatically.
-- If both providers are unavailable, a **local keyword fallback** still returns plausible services (no hard crash).
+### Dual-engine support (details)
+
+- **Primary:** Groq + **Llama 3.1** (default `GROQ_MODEL=llama-3.1-8b-instant`).
+- **Failover:** Same structured JSON prompt is sent to **Gemini** if Groq does not succeed.
+- **Fallback:** Keyword-style matching over catalog text if neither cloud provider returns usable JSON aligned to catalog names.
 
 ### Semantic intelligence
 
-The model interprets **Hebrew**, **slang**, and **medical intent** using general language understanding—**not** hardcoded synonym tables. For example, a user describing **back pain** can be routed toward **Physiotherapy** (or whatever matching services exist in your seeded catalog) based on the live list of service names and descriptions.
+The model interprets **Hebrew**, **slang**, and **medical intent** using general language understanding—**not** hardcoded synonym tables. For example, **back pain** can map to **Physiotherapy** when that service exists in the catalog, using the injected list of names and descriptions only.
 
 ### Broad query support
 
-Open-ended requests (e.g. **“Facial treatment”**) receive a **short curated set** of distinct, relevant services across categories (typically several top matches), not a single arbitrary pick or the entire catalog.
+Open-ended requests receive a **short curated set** of distinct services (typically on the order of **three to four** matches), not the entire catalog. Results are reflected in **`matched_service_names`** (and parallel IDs), matching the response model in `backend/app/schemas/ai.py`.
 
 ### API keys and environment
 
@@ -231,13 +238,18 @@ GEMINI_API_KEY=your_gemini_key
 
 ### Sample request (`POST /ai/consult`)
 
+Request body uses **`AIConsultRequest`**: `query` is required, non-empty, max **4000** characters.
+
 ```json
 {
   "query": "I want a facial refresh — something for skin texture and glow"
 }
 ```
 
-Example response shape (multi-match; single-match responses still populate `matched_service_id` / `matched_service_name` for the primary item):
+Example **`AIConsultResponse`** shape (illustrative IDs and copy; your DB IDs and clinic rows will differ). Field names match the implementation:
+
+- **`reason`:** Typically `"Matched via Groq."`, `"Matched via Gemini."`, or a fallback / location-adjustment message from `recommend_treatment`.
+- **`confidence_score`:** Roughly **0.86** (Groq) or **0.82** (Gemini) on success, lower when fallback or catalog mismatch logic runs; always between **0** and **1**.
 
 ```json
 {
@@ -301,9 +313,9 @@ Recommended live demo order:
 
 ## Notes
 
-- SQLite is used for Ex1 (`treatment_finder.db`) for simple local persistence.
-- `python -m app.init_db` now seeds realistic `services`, `clinics`, and `clinic_services` data for local search proof of concept.
-- To reseed from scratch, delete `backend/treatment_finder.db` and run `python -m app.init_db` again.
+- SQLite is used for Ex1 (`backend/treatment_finder.db`) for simple local persistence.
+- `python -m app.init_db` (from **`backend/`**) seeds realistic `services`, `clinics`, and `clinic_services` data for local search proof of concept.
+- To reseed from scratch, delete `backend/treatment_finder.db` and run `python -m app.init_db` again from **`backend/`**.
 - Automated tests are in `backend/tests/`.
 - Manual REST checks are in `backend/requests/appointment_crud.http`.
 - Ex1 is the implemented foundation; Ex2/Ex3 sections describe planned extensions and expected structure.

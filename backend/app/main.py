@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -11,7 +12,9 @@ from app.api.services import router as services_router
 from app.core.database import create_db_and_tables
 from app.init_db import seed_initial_data
 
-load_dotenv()
+# Repository root .env (same file docker-compose uses); fallback to CWD for a local backend/.env
+_root_env = Path(__file__).resolve().parents[2] / ".env"
+load_dotenv(_root_env if _root_env.is_file() else None)
 
 
 @asynccontextmanager
