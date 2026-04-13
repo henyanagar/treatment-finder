@@ -21,9 +21,24 @@ GEMINI_MODEL_CANDIDATES = (
 )
 
 
-def _looks_like_gibberish(query: str) -> bool:
+HEBREW_TREATMENT_KEYWORDS = {
+    "בוטוקס",
+    "מילוי",
+    "ניתוח",
+}
+
+
+def _looks_like_gibberish(query: str, known_terms: set[str] | None = None) -> bool:
     normalized = query.lower().strip()
-    compact = "".join(ch for ch in normalized if ch.isalnum())
+    compact = "".join(ch for ch in normalized if ch.isalnum() or "\u0590" <= ch <= "\u05ff")
+    if not compact:
+        return True
+    contains_hebrew = bool(re.search(r"[\u0590-\u05ff]", normalized))
+    known = known_terms or set()
+    if normalized in known or compact in known or compact in HEBREW_TREATMENT_KEYWORDS:
+        return False
+    if contains_hebrew and len(compact) >= 3:
+        return False
     if len(compact) <= 2:
         return True
     if len(normalized.split()) > 1:
@@ -326,7 +341,14 @@ def recommend_treatment(user_query: str, session: Session) -> AIConsultResponse:
             "Add or seed services before using AI consultation.",
         )
 
-    if _looks_like_gibberish(user_query):
+    known_terms: set[str] = set(HEBREW_TREATMENT_KEYWORDS)
+    for service in catalog:
+        name = (service.name or "").lower().strip()
+        if not name:
+            continue
+        known_terms.add(name)
+        known_terms.update(t for t in re.split(r"\s+", name) if len(t) >= 3)
+    if _looks_like_gibberish(user_query, known_terms):
         return _empty_ai_response(
             "The query looks like gibberish and could not be interpreted.",
             "Please describe your concern in clear words (any language).",

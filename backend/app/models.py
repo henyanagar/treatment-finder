@@ -68,7 +68,7 @@ class Appointment(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     user_full_name: str = Field(index=True, min_length=2, max_length=120)
-    user_phone: str = Field(min_length=7, max_length=20)
+    user_phone: str = Field(min_length=7, max_length=20, regex=r"^\+?\d{7,20}$")
     notes: Optional[str] = Field(default=None, max_length=1000)
     appointment_datetime: datetime = Field(index=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), index=True)

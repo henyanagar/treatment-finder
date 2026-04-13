@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Body, Depends, Response, status
 from sqlmodel import Session
 
 from app.core.database import get_session
@@ -10,7 +10,7 @@ router = APIRouter(prefix="/appointments", tags=["appointments"])
 
 @router.post("", response_model=AppointmentRead, status_code=status.HTTP_201_CREATED)
 def create_appointment(
-    payload: AppointmentCreate,
+    payload: AppointmentCreate = Body(...),
     session: Session = Depends(get_session),
 ) -> AppointmentRead:
     return appointment_service.create_appointment(session, payload)

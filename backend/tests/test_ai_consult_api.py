@@ -83,6 +83,22 @@ def test_ai_consult_out_of_scope_returns_null_match(monkeypatch) -> None:
     session.close()
 
 
+def test_ai_consult_hebrew_treatment_word_is_not_flagged_gibberish(monkeypatch) -> None:
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    client, session = _build_client()
+    session.add(Service(name="Botox Injection", description="Injectable for dynamic wrinkles"))
+    session.commit()
+
+    response = client.post("/ai/consult", json={"query": "בוטוקס"})
+    assert response.status_code == 200
+    data = response.json()
+    assert "gibberish" not in data["reason"].lower()
+
+    app.dependency_overrides.clear()
+    session.close()
+
+
 def test_ai_consult_pain_prioritizes_rehabilitation(monkeypatch) -> None:
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("GROQ_API_KEY", raising=False)

@@ -8,9 +8,7 @@ from app.models import Appointment, Clinic, Service
 from app.repositories import appointment_repository
 from app.schemas.appointment import AppointmentCreate, AppointmentUpdate
 
-_DB_UNAVAILABLE = (
-    "A database error occurred. Please try again in a moment.",
-)
+_DB_UNAVAILABLE = "A database error occurred. Please try again in a moment."
 
 
 def _validate_service_exists(session: Session, service_id: int) -> None:

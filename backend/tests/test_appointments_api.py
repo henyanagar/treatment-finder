@@ -73,6 +73,24 @@ def _create_appointment(
     return response.json()
 
 
+def test_create_appointment_with_empty_user_name_returns_422() -> None:
+    client, session = _build_client()
+    service_id, clinic_id = _seed_dependencies(session)
+    payload = {
+        "user_full_name": "",
+        "user_phone": "0521234567",
+        "notes": "Any",
+        "appointment_datetime": (datetime.now(UTC) + timedelta(days=1)).isoformat(),
+        "service_id": service_id,
+        "clinic_id": clinic_id,
+    }
+    response = client.post("/appointments", json=payload)
+    assert response.status_code == 422
+
+    app.dependency_overrides.clear()
+    session.close()
+
+
 def test_create_appointment() -> None:
     client, session = _build_client()
     service_id, clinic_id = _seed_dependencies(session)
