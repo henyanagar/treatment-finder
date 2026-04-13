@@ -12,9 +12,14 @@ from app.api.services import router as services_router
 from app.core.database import create_db_and_tables
 from app.init_db import seed_initial_data
 
-# Repository root .env (same file docker-compose uses); fallback to CWD for a local backend/.env
-_root_env = Path(__file__).resolve().parents[2] / ".env"
-load_dotenv(_root_env if _root_env.is_file() else None)
+# Load secrets from disk in a fixed order (never commit .env). Compose uses the same root `.env`.
+_main = Path(__file__).resolve()
+for _env_path in (_main.parents[2] / ".env", _main.parents[1] / ".env"):
+    if _env_path.is_file():
+        load_dotenv(_env_path)
+        break
+else:
+    load_dotenv()
 
 
 @asynccontextmanager

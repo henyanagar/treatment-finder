@@ -1,11 +1,16 @@
 from typing import Optional
 
 from fastapi import HTTPException, status
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
 
 from app.models import Appointment, Clinic, Service
 from app.repositories import appointment_repository
 from app.schemas.appointment import AppointmentCreate, AppointmentUpdate
+
+_DB_UNAVAILABLE = (
+    "A database error occurred. Please try again in a moment.",
+)
 
 
 def _validate_service_exists(session: Session, service_id: int) -> None:
@@ -38,11 +43,23 @@ def _validate_supporting_entities(
 def create_appointment(session: Session, payload: AppointmentCreate) -> Appointment:
     _validate_supporting_entities(session, payload.service_id, payload.clinic_id)
     appointment = Appointment.model_validate(payload)
-    return appointment_repository.create(session, appointment)
+    try:
+        return appointment_repository.create(session, appointment)
+    except SQLAlchemyError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=_DB_UNAVAILABLE,
+        ) from None
 
 
 def get_appointment(session: Session, appointment_id: int) -> Appointment:
-    appointment = appointment_repository.get_by_id(session, appointment_id)
+    try:
+        appointment = appointment_repository.get_by_id(session, appointment_id)
+    except SQLAlchemyError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=_DB_UNAVAILABLE,
+        ) from None
     if not appointment:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -52,7 +69,13 @@ def get_appointment(session: Session, appointment_id: int) -> Appointment:
 
 
 def list_appointments(session: Session, offset: int = 0, limit: int = 100) -> list[Appointment]:
-    return appointment_repository.list_all(session, offset=offset, limit=limit)
+    try:
+        return appointment_repository.list_all(session, offset=offset, limit=limit)
+    except SQLAlchemyError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=_DB_UNAVAILABLE,
+        ) from None
 
 
 def update_appointment(
@@ -68,9 +91,21 @@ def update_appointment(
     )
 
     appointment.sqlmodel_update(updates)
-    return appointment_repository.update(session, appointment)
+    try:
+        return appointment_repository.update(session, appointment)
+    except SQLAlchemyError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=_DB_UNAVAILABLE,
+        ) from None
 
 
 def delete_appointment(session: Session, appointment_id: int) -> None:
     appointment = get_appointment(session, appointment_id)
-    appointment_repository.delete(session, appointment)
+    try:
+        appointment_repository.delete(session, appointment)
+    except SQLAlchemyError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=_DB_UNAVAILABLE,
+        ) from None

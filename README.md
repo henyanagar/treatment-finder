@@ -32,6 +32,7 @@ The project is built in stages across the course:
   - `repositories` (data access)
   - `schemas` (request/response contracts)
 - **Dynamic context injection (AI):** The AI consultation service loads the current service catalog from the database on each request and passes it to the model, so recommendations stay aligned with live data without maintaining separate keyword maps or manual re-mapping when the catalog changes.
+- **Resilience:** AI consultation returns a structured response (with an explanatory `reason`) when the database or model pipeline fails unexpectedly, instead of surfacing a generic **500**. Appointment mutations that hit database errors surface **503** with a clear message.
 
 ### Frontend (Ex2 target)
 - Planned role:
@@ -91,7 +92,7 @@ treatment-finder-platform/          # repository root
       services/                     # business logic (incl. ai_service)
       repositories/
       schemas/                      # SQLModel request/response models + Field validation
-      core/                         # database, config
+      core/                         # database engine / session
       init_db.py
       main.py
       models.py
@@ -108,7 +109,7 @@ treatment-finder-platform/          # repository root
 - Python 3.12+ (project currently tested on Python 3.13)
 - Docker Desktop (optional, recommended for full run)
 
-**Environment file:** Create `.env` in the **repository root** (next to `docker-compose.yml`). Copy from `.env.example` and add API keys as needed for AI. Local `uvicorn` also loads this file via `python-dotenv` when present.
+**Environment file:** Create `.env` in the **repository root** (next to `docker-compose.yml`). Copy from `.env.example` and add API keys as needed for AI. `app.main` loads `<root>/.env` first, then falls back to `backend/.env`, then python-dotenv’s default search—so it stays aligned with Docker Compose while still allowing a backend-only `.env` if you prefer.
 
 ### A) Run Backend Locally (Ex1)
 
@@ -313,6 +314,8 @@ Recommended live demo order:
 
 ## Notes
 
+- **Git hygiene:** `.gitignore` excludes `.venv/`, `__pycache__/`, `*.db`, and `.env`. If any of those were committed by mistake, stop tracking without deleting local files, then commit, for example: `git rm -r --cached backend/.venv` and `git rm --cached backend/treatment_finder.db` (adjust paths to match what was tracked).
+- **Secrets:** Keep real API keys only in root `.env` (ignored by git). Docker Compose passes them into the container at runtime; they are not copied into the image layers.
 - SQLite is used for Ex1 (`backend/treatment_finder.db`) for simple local persistence.
 - `python -m app.init_db` (from **`backend/`**) seeds realistic `services`, `clinics`, and `clinic_services` data for local search proof of concept.
 - To reseed from scratch, delete `backend/treatment_finder.db` and run `python -m app.init_db` again from **`backend/`**.

@@ -1,4 +1,5 @@
 version: "3.9"
+# API keys are injected at runtime via env_file / environment (not baked into the image).
 
 services:
   backend:

@@ -179,34 +179,23 @@ def _normalize_location(
     return m.group(1).strip() if m else None
 
 
-def recommend_treatment(user_query: str, session: Session) -> AIConsultResponse:
-    catalog = list(session.exec(select(Service)).all())
-    if not catalog:
-        return AIConsultResponse(
-            matched_service_id=None,
-            matched_service_name=None,
-            matched_service_ids=[],
-            matched_service_names=[],
-            location=None,
-            reason="No services are configured in the database.",
-            explanation="Add or seed services before using AI consultation.",
-            confidence_score=0.0,
-            clinics=[],
-        )
+def _empty_ai_response(reason: str, explanation: str, *, location: str | None = None) -> AIConsultResponse:
+    return AIConsultResponse(
+        matched_service_id=None,
+        matched_service_name=None,
+        matched_service_ids=[],
+        matched_service_names=[],
+        location=location,
+        reason=reason,
+        explanation=explanation,
+        confidence_score=0.0,
+        clinics=[],
+    )
 
-    if _looks_like_gibberish(user_query):
-        return AIConsultResponse(
-            matched_service_id=None,
-            matched_service_name=None,
-            matched_service_ids=[],
-            matched_service_names=[],
-            location=None,
-            reason="The query looks like gibberish and could not be interpreted.",
-            explanation="Please describe your concern in clear words (any language).",
-            confidence_score=0.0,
-            clinics=[],
-        )
 
+def _consult_with_catalog(
+    user_query: str, session: Session, catalog: list[Service]
+) -> AIConsultResponse:
     known_cities = list(session.exec(select(Clinic.city).distinct()).all())
     categories = list(session.exec(select(TreatmentCategory)).all())
     cat_by_id = {c.id: c.name for c in categories if c.id is not None}
@@ -320,3 +309,33 @@ def recommend_treatment(user_query: str, session: Session) -> AIConsultResponse:
         confidence_score=max(0.0, min(1.0, confidence)),
         clinics=items,
     )
+
+
+def recommend_treatment(user_query: str, session: Session) -> AIConsultResponse:
+    try:
+        catalog = list(session.exec(select(Service)).all())
+    except Exception:
+        return _empty_ai_response(
+            "We could not read the treatment catalog.",
+            "A database error occurred. Please try again shortly.",
+        )
+
+    if not catalog:
+        return _empty_ai_response(
+            "No services are configured in the database.",
+            "Add or seed services before using AI consultation.",
+        )
+
+    if _looks_like_gibberish(user_query):
+        return _empty_ai_response(
+            "The query looks like gibberish and could not be interpreted.",
+            "Please describe your concern in clear words (any language).",
+        )
+
+    try:
+        return _consult_with_catalog(user_query, session, catalog)
+    except Exception:
+        return _empty_ai_response(
+            "We could not complete this consultation.",
+            "A temporary error occurred while matching services or loading clinics. Please try again.",
+        )
