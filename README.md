@@ -1,4 +1,4 @@
-﻿# Treatment Finder and Appointment Platform
+# Treatment Finder and Appointment Platform
 
 Treatment Finder is a full-stack course project for discovering treatments, matching clinics, booking appointments, and rating completed visits.
 
@@ -142,14 +142,3 @@ Stop:
 docker-compose down
 ```
 
-## Verification Checklist
-
-- [ ] `docker-compose up --build` starts both services
-- [ ] Backend docs open at [http://localhost:8000/docs](http://localhost:8000/docs)
-- [ ] Frontend opens at [http://localhost:3000](http://localhost:3000) (Docker) or [http://localhost:5173](http://localhost:5173) (local)
-- [ ] Search works and returns expected clinics
-- [ ] Booking allows valid future slots
-- [ ] Upcoming / Past visits separation is correct
-- [ ] Cancel sets status to `CANCELLED` and moves appointment to Past
-- [ ] Rating is single-submit per appointment
-- [ ] Clinic `rating` and `reviews_count` update after review
