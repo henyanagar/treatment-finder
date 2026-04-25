@@ -1,5 +1,265 @@
 # Treatment Finder and Appointment Platform
 
+Treatment Finder is a full-stack course project for discovering treatments, matching clinics, booking appointments, and managing post-visit feedback.
+
+The platform supports:
+- treatment search (keyword + AI-assisted semantic consultation),
+- clinic comparison,
+- appointment booking/rescheduling/cancellation,
+- appointment rating and clinic score updates.
+
+---
+
+## System Architecture
+
+### High-Level
+- **Frontend:** React + Vite + Tailwind CSS
+- **Backend:** FastAPI + SQLModel + SQLite
+- **Communication:** Frontend uses REST APIs exposed by backend (`/api` in dev via Vite proxy)
+
+### Backend Layers
+
+The backend follows a layered architecture:
+
+- **`api/` (controllers/routes)**  
+  Defines HTTP endpoints, request parsing, and response models.
+
+- **`services/` (business logic)**  
+  Enforces rules such as:
+  - future-only booking windows,
+  - slot conflict handling,
+  - authorization checks by `user_id`,
+  - completed-only review flow,
+  - clinic rating recalculation after reviews.
+
+- **`repositories/` (data access)**  
+  Encapsulates SQLModel/SQLAlchemy queries and persistence operations.
+
+- **`schemas/` (contracts/validation)**  
+  Request/response models with constraints and serialization behavior.
+
+- **`core/` + `database.py` (infrastructure)**  
+  Engine/session lifecycle and DB compatibility migration helpers.
+
+### Core Domain Resources
+- **services**: treatment catalog
+- **clinics**: clinic profile/location/rating metadata
+- **clinic_services**: clinic-to-service offerings and availability
+- **appointments**: user bookings
+- **ratings**: post-visit reviews
+- **users**: normalized user identity data
+
+### Frontend Structure
+- **`frontend/src/pages/`**: route-level orchestration and data loading
+- **`frontend/src/components/`**: reusable UI components (cards/forms/modals/search/navbar)
+- **Hooks-based state management**: `useState`, `useEffect`, `useMemo`, `useCallback`
+
+---
+
+## Smart AI Semantic Consultant
+
+Endpoint: **`POST /ai/consult`**
+
+The AI consultant provides semantic matching from free-text intent to catalog services and clinics.
+
+### Design Principles
+- **Dynamic catalog grounding:**  
+  The service list is read from DB at request time and injected into prompt context.
+- **No hardcoded treatment mapping for matching:**  
+  Matching is performed by model output aligned to catalog names.
+- **Graceful degradation:**  
+  If AI providers fail, backend uses a local fallback and returns structured reasons.
+
+### Dual-Provider Strategy
+- **Primary:** Groq (Llama 3.1 model family)
+- **Failover:** Google Gemini
+- **Fallback:** local keyword-style matching against live catalog text
+
+### Broad Query Support
+For broad intents (for example “facial rejuvenation”), the system can return multiple relevant services, not only one.  
+Response includes:
+- `matched_service_ids`
+- `matched_service_names`
+- recommended clinics offering those services.
+
+### Reliability Behavior
+Instead of failing with opaque errors, API returns clear response payloads with:
+- `reason`
+- `explanation`
+- `confidence_score`
+- safe empty results when needed.
+
+---
+
+## Environment Variables
+
+Use a single source of truth at the project root:
+- create `/.env` from `/.env.example`.
+
+### Minimum Required
+
+```bash
+DATABASE_URL=sqlite:///./treatment_finder.db
+```
+
+### Optional AI Keys
+
+```bash
+GROQ_API_KEY=
+GROQ_MODEL=llama-3.1-8b-instant
+GEMINI_API_KEY=
+```
+
+### Optional Frontend Override (local only)
+
+```bash
+VITE_API_BASE_URL=/api
+```
+
+Notes:
+- Backend settings are loaded via `pydantic-settings` from environment / root `.env`.
+- `DATABASE_URL` is required and fails fast if missing.
+
+---
+
+## Quick Start (Recommended for Grading)
+
+Open **two terminals** from repository root.
+
+### Terminal A - Backend
+
+```bash
+cd backend
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r ../requirements.txt
+python -m app.init_db
+uvicorn app.main:app --reload
+```
+
+### Terminal B - Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### Access
+- Frontend (local dev): [http://localhost:5173](http://localhost:5173)
+- Backend Docs: [http://localhost:8000/docs](http://localhost:8000/docs)
+
+---
+
+## Local Setup
+
+### Backend Setup
+
+1. Create and activate venv:
+
+```bash
+cd backend
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+```
+
+2. Install dependencies:
+
+```bash
+pip install -r ../requirements.txt
+```
+
+3. Initialize DB:
+
+```bash
+python -m app.init_db
+```
+
+4. Run API:
+
+```bash
+uvicorn app.main:app --reload
+```
+
+5. Run tests:
+
+```bash
+pytest -q
+```
+
+### Frontend Setup
+
+1. Install dependencies:
+
+```bash
+cd frontend
+npm install
+```
+
+2. Run dev server:
+
+```bash
+npm run dev
+```
+
+3. Lint:
+
+```bash
+npm run lint
+```
+
+---
+
+## Docker Deployment
+
+Run from repository root:
+
+```bash
+docker-compose up --build
+```
+
+### Access
+- Frontend (Docker): [http://localhost:3000](http://localhost:3000)
+- Backend Docs: [http://localhost:8000/docs](http://localhost:8000/docs)
+
+### Docker Notes
+- `docker-compose.yml` orchestrates both services (`backend` + `frontend`).
+- Compose loads root env file via:
+  - `env_file: .env`
+- Backend container receives:
+  - `DATABASE_URL`
+  - `GROQ_API_KEY`
+  - `GEMINI_API_KEY`
+  - `GROQ_MODEL`
+- Backend container seeds DB automatically on startup:
+  - `python -m app.init_db` before `uvicorn`.
+- Frontend container runs Vite dev mode for EX2 demo.
+
+Stop containers:
+
+```bash
+docker-compose down
+```
+
+---
+
+## Verification Checklist
+
+Use this before submission:
+
+- [ ] `docker-compose up --build` starts both services without errors
+- [ ] Backend docs load at [http://localhost:8000/docs](http://localhost:8000/docs)
+- [ ] Frontend loads at [http://localhost:3000](http://localhost:3000) (Docker) or [http://localhost:5173](http://localhost:5173) (local dev)
+- [ ] Search returns clinics for known terms (case-insensitive)
+- [ ] Booking only allows valid future slots
+- [ ] My Appointments shows Upcoming + Past sections correctly
+- [ ] Cancel updates status to `CANCELLED` and moves item to Past
+- [ ] Rating can be submitted only once per appointment
+- [ ] Clinic aggregate rating and `reviews_count` update after review
+- [ ] No secrets are committed (`.env` ignored; `.env.example` tracked)
+
+# Treatment Finder and Appointment Platform
+
 Course project for discovering treatments, comparing clinics, booking appointments, and rating completed visits.
 
 ## System Architecture
