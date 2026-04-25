@@ -17,3 +17,4 @@ __pycache__/
 *.db
 *.sqlite
 *.sqlite3
+backend/treatment_finder.db

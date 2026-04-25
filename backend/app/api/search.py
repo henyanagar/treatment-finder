@@ -13,4 +13,4 @@ def search(
     query: str,
     session: Session = Depends(get_session),
 ) -> list[SearchClinicResult]:
-    return search_service.search(session, query)
+    return search_service.search(session, query.strip())

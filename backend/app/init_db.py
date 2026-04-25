@@ -1,8 +1,9 @@
-from app.core.database import create_db_and_tables
+from datetime import UTC, datetime, timedelta
+
 from sqlmodel import Session, select
 
-from app.core.database import engine
-from app.models import Clinic, ClinicServiceLink, Service, TreatmentCategory
+from app.database import create_db_and_tables, engine
+from app.models import Appointment, Clinic, ClinicServiceLink, Service, TreatmentCategory, User
 
 
 def seed_initial_data() -> None:
@@ -272,6 +273,8 @@ def seed_initial_data() -> None:
                 latitude=32.0853,
                 longitude=34.7818,
                 rating=4.7,
+                opening_hours="09:00 - 19:00",
+                image_url="https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1600&q=80",
             ),
             Clinic(
                 name="North Care Center",
@@ -280,6 +283,8 @@ def seed_initial_data() -> None:
                 latitude=32.7940,
                 longitude=34.9896,
                 rating=4.5,
+                opening_hours="09:00 - 19:00",
+                image_url="https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=1600&q=80",
             ),
             Clinic(
                 name="Jerusalem Wellness Hub",
@@ -288,6 +293,8 @@ def seed_initial_data() -> None:
                 latitude=31.7683,
                 longitude=35.2137,
                 rating=4.6,
+                opening_hours="09:00 - 19:00",
+                image_url="https://images.unsplash.com/photo-1631217868264-e5b90bb7e133?auto=format&fit=crop&w=1600&q=80",
             ),
             Clinic(
                 name="Coastal Family Clinic",
@@ -296,6 +303,8 @@ def seed_initial_data() -> None:
                 latitude=32.3215,
                 longitude=34.8532,
                 rating=4.3,
+                opening_hours="09:00 - 19:00",
+                image_url="https://images.unsplash.com/photo-1579684385127-1ef15d508118?auto=format&fit=crop&w=1600&q=80",
             ),
             Clinic(
                 name="South Health Point",
@@ -304,6 +313,8 @@ def seed_initial_data() -> None:
                 latitude=31.2518,
                 longitude=34.7913,
                 rating=4.4,
+                opening_hours="09:00 - 19:00",
+                image_url="https://images.unsplash.com/photo-1666214280557-f1b5022eb634?auto=format&fit=crop&w=1600&q=80",
             ),
             Clinic(
                 name="Nova Medical Aesthetic Center",
@@ -312,6 +323,8 @@ def seed_initial_data() -> None:
                 latitude=32.0932,
                 longitude=34.8015,
                 rating=4.8,
+                opening_hours="09:00 - 19:00",
+                image_url="https://images.unsplash.com/photo-1538108149393-fbbd81895907?auto=format&fit=crop&w=1600&q=80",
             ),
             Clinic(
                 name="Elite Laser & Aesthetics Institute",
@@ -320,6 +333,8 @@ def seed_initial_data() -> None:
                 latitude=32.8077,
                 longitude=34.9931,
                 rating=4.9,
+                opening_hours="09:00 - 19:00",
+                image_url="https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&w=1600&q=80",
             ),
         ]
 
@@ -327,6 +342,14 @@ def seed_initial_data() -> None:
             clinic = session.exec(select(Clinic).where(Clinic.name == clinic_seed.name)).first()
             if not clinic:
                 session.add(clinic_seed)
+            else:
+                clinic.address = clinic_seed.address
+                clinic.city = clinic_seed.city
+                clinic.latitude = clinic_seed.latitude
+                clinic.longitude = clinic_seed.longitude
+                clinic.rating = clinic_seed.rating
+                clinic.opening_hours = clinic_seed.opening_hours
+                clinic.image_url = clinic_seed.image_url
 
         session.commit()
 
@@ -396,6 +419,125 @@ def seed_initial_data() -> None:
                 existing_link.price = price
                 existing_link.is_available = is_available
 
+        session.commit()
+
+        seed_user = session.get(User, 1)
+        if not seed_user:
+            session.add(
+                User(
+                    id=1,
+                    full_name="Henya",
+                    email="henya@example.com",
+                    phone="0521234567",
+                )
+            )
+        else:
+            seed_user.full_name = "Henya"
+            seed_user.email = "henya@example.com"
+            seed_user.phone = "0521234567"
+        session.commit()
+
+        nova_clinic_id = clinics_by_name.get("Nova Medical Aesthetic Center")
+        city_clinic_id = clinics_by_name.get("City Clinic")
+        botox_service_id = services_by_name.get("Botox Injection")
+        physio_service_id = services_by_name.get("Physiotherapy")
+        filler_service_id = services_by_name.get("Hyaluronic Acid Filler")
+
+        # Seed demo appointments for user_id=1 (idempotent by user+clinic+service+datetime).
+        # Keep clean, round-hour values aligned with UI slot rules.
+        base_now = datetime.now(UTC).replace(minute=0, second=0, microsecond=0, tzinfo=None)
+        seeded_appointments = [
+            {
+                "user_id": 1,
+                "service_id": botox_service_id,
+                "clinic_id": nova_clinic_id,
+                "dt": (base_now + timedelta(days=2)).replace(hour=17),
+                "notes": "Seeded upcoming appointment",
+                "status": "UPCOMING",
+            },
+            {
+                "user_id": 1,
+                "service_id": physio_service_id,
+                "clinic_id": city_clinic_id,
+                "dt": (base_now - timedelta(days=5)).replace(hour=9),
+                "notes": "Seeded completed appointment",
+                "status": "COMPLETED",
+            },
+            {
+                "user_id": 1,
+                "service_id": botox_service_id,
+                "clinic_id": city_clinic_id,
+                "dt": (base_now - timedelta(days=2)).replace(hour=10),
+                "notes": "Seeded completed appointment for rating test #1",
+                "status": "COMPLETED",
+            },
+            {
+                "user_id": 1,
+                "service_id": physio_service_id,
+                "clinic_id": city_clinic_id,
+                "dt": (base_now - timedelta(days=2)).replace(hour=12),
+                "notes": "Seeded completed appointment for rating test #2",
+                "status": "COMPLETED",
+            },
+            {
+                "user_id": 1,
+                "service_id": filler_service_id,
+                "clinic_id": city_clinic_id,
+                "dt": (base_now - timedelta(days=3)).replace(hour=15),
+                "notes": "Seeded completed appointment for rating test #3",
+                "status": "COMPLETED",
+            },
+        ]
+
+        # Normalize previously-seeded demo appointments to valid clinic hours.
+        existing_seeded = session.exec(
+            select(Appointment).where(
+                Appointment.user_id == 1,
+                Appointment.notes.is_not(None),
+            )
+        ).all()
+        for seeded in existing_seeded:
+            if not str(seeded.notes).startswith("Seeded"):
+                continue
+            dt = seeded.appointment_datetime
+            if dt.hour < 9 or dt.hour > 18:
+                seeded.appointment_datetime = dt.replace(hour=10, minute=0, second=0, microsecond=0)
+            if not seeded.status:
+                seeded.status = (
+                    "UPCOMING"
+                    if seeded.appointment_datetime > base_now
+                    else "COMPLETED"
+                )
+            session.add(seeded)
+
+        for item in seeded_appointments:
+            service_id = item["service_id"]
+            clinic_id = item["clinic_id"]
+            if not service_id or not clinic_id:
+                continue
+            existing_appointment = session.exec(
+                select(Appointment).where(
+                    Appointment.user_id == item["user_id"],
+                    Appointment.service_id == service_id,
+                    Appointment.clinic_id == clinic_id,
+                    Appointment.appointment_datetime == item["dt"],
+                )
+            ).first()
+            if existing_appointment:
+                existing_appointment.notes = item["notes"]
+                existing_appointment.status = item.get("status")
+                session.add(existing_appointment)
+                continue
+            session.add(
+                Appointment(
+                    user_id=item["user_id"],
+                    service_id=service_id,
+                    clinic_id=clinic_id,
+                    appointment_datetime=item["dt"],
+                    notes=item["notes"],
+                    status=item.get("status"),
+                )
+            )
         session.commit()
 
 

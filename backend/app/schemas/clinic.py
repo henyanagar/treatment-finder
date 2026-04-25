@@ -10,6 +10,9 @@ class ClinicBase(SQLModel):
     latitude: Optional[float] = Field(default=None, ge=-90.0, le=90.0)
     longitude: Optional[float] = Field(default=None, ge=-180.0, le=180.0)
     rating: Optional[float] = Field(default=None, ge=0.0, le=5.0)
+    reviews_count: int = Field(default=0, ge=0)
+    opening_hours: Optional[str] = Field(default="09:00 - 19:00", max_length=50)
+    image_url: Optional[str] = Field(default=None, max_length=1000)
 
 
 class ClinicRead(ClinicBase):

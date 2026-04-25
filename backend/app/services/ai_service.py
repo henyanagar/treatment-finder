@@ -21,7 +21,7 @@ GEMINI_MODEL_CANDIDATES = (
 )
 
 
-HEBREW_TREATMENT_KEYWORDS = {
+MINIMAL_VALID_HEBREW_HINTS = {
     "בוטוקס",
     "מילוי",
     "ניתוח",
@@ -35,7 +35,7 @@ def _looks_like_gibberish(query: str, known_terms: set[str] | None = None) -> bo
         return True
     contains_hebrew = bool(re.search(r"[\u0590-\u05ff]", normalized))
     known = known_terms or set()
-    if normalized in known or compact in known or compact in HEBREW_TREATMENT_KEYWORDS:
+    if normalized in known or compact in known or compact in MINIMAL_VALID_HEBREW_HINTS:
         return False
     if contains_hebrew and len(compact) >= 3:
         return False
@@ -341,7 +341,7 @@ def recommend_treatment(user_query: str, session: Session) -> AIConsultResponse:
             "Add or seed services before using AI consultation.",
         )
 
-    known_terms: set[str] = set(HEBREW_TREATMENT_KEYWORDS)
+    known_terms: set[str] = set(MINIMAL_VALID_HEBREW_HINTS)
     for service in catalog:
         name = (service.name or "").lower().strip()
         if not name:

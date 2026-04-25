@@ -67,3 +67,44 @@ def test_search_returns_empty_for_blank_or_missing_matches() -> None:
 
     app.dependency_overrides.clear()
     session.close()
+
+
+def test_search_is_case_insensitive_and_matches_clinic_fields() -> None:
+    client, session = _build_client()
+
+    service = Service(name="Laser Facial", description="Skin rejuvenation")
+    clinic = Clinic(name="City Clinic", address="15 Herzl Street", city="Tel Aviv", rating=4.8)
+    session.add(service)
+    session.add(clinic)
+    session.commit()
+    session.refresh(service)
+    session.refresh(clinic)
+
+    clinic_service = ClinicServiceLink(
+        service_id=service.id,
+        clinic_id=clinic.id,
+        price=300.0,
+        is_available=True,
+    )
+    session.add(clinic_service)
+    session.commit()
+
+    name_response = client.get("/search?query=  city clinic  ")
+    assert name_response.status_code == 200
+    assert len(name_response.json()) == 1
+    assert name_response.json()[0]["clinic_name"] == "City Clinic"
+
+    upper_response = client.get("/search?query=CITY")
+    assert upper_response.status_code == 200
+    assert len(upper_response.json()) == 1
+
+    address_response = client.get("/search?query=herzl")
+    assert address_response.status_code == 200
+    assert len(address_response.json()) == 1
+
+    description_response = client.get("/search?query=rejuvenation")
+    assert description_response.status_code == 200
+    assert len(description_response.json()) == 1
+
+    app.dependency_overrides.clear()
+    session.close()
